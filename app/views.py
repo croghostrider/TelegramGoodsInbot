@@ -120,8 +120,7 @@ class UserListView(MethodView):
 # Класс для отображения карточки одного пользователя
 class UserCardView(MethodView):
     def get(self, user_id):
-        user = User.query.get(user_id)
-        if user:
+        if user := User.query.get(user_id):
             return render_template('user_card.html', user=user)
         else:
             return jsonify({'message': 'User not found'}), 404

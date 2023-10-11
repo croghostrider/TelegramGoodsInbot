@@ -43,18 +43,6 @@ class UserResource(Resource):
         user = User.query.get_or_404(user_id)
         return user_schema.dump(user)
 
-        '''def patch(self, user_id):
-        user = User.query.get_or_404(user_id)
-
-        if 'increment' in request.json:
-            user.increment = request.json['increment']
-        if 'user_login' in request.json:
-            user.user_login = request.json['user_login']
-        # Update other fields here...'''
-
-        db.session.commit()
-        return user_schema.dump(user)
-
     '''def delete(self, user_id):
         user = User.query.get_or_404(user_id)
         db.session.delete(user)
