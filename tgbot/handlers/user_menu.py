@@ -76,7 +76,7 @@ _ = i18n.gettext
 
 
 async def notify(dp: Dispatcher, msg):
-    print(f'Уведомление!' + msg)
+    print(f'Уведомление!{msg}')
     await send_admins(msg, markup="default")
 
 
@@ -236,11 +236,11 @@ async def product_position_create_photo(message: Message, state: FSMContext):
     await notify(dp, f"Добавлена группа в БД: {group_id}, пользователем ID: {group_user_id}")
 
     shortmestext = group_description
-    if ct == "text":
-        await message.answer(f"{shortmestext}")
-    elif ct == "photo":
+    if ct == "photo":
         await message.answer_photo(photo=group_photo, caption=f"{shortmestext}")
 
+    elif ct == "text":
+        await message.answer(f"{shortmestext}")
     await message.answer(_("<b>📁 Позиция была успешно создана ✅</b>", locale=lang))
 
 
@@ -372,11 +372,8 @@ async def product_position_create_photo(message: Message, state: FSMContext):
     async with state.proxy() as data:
         position_user_id = message.from_user.id
         vacs_url = data['here_position_city']
-        position_state = "Approved"
-        #вилка включения вещания при создании
-        if vacs_url == "ALL_CHANNELS":
-            position_state = "Created"
-        #position_name = clear_html(data['here_position_name'])
+        position_state = "Created" if vacs_url == "ALL_CHANNELS" else "Approved"
+            #position_name = clear_html(data['here_position_name'])
 
     await state.finish()
 
@@ -402,8 +399,8 @@ async def product_position_create_photo(message: Message, state: FSMContext):
     shortml = 200
     descritionlen = len(position_description)
     if descritionlen >= shortml:
-        shortmestext = f"{position_description[0:shortml]}\n"
-    elif descritionlen < shortml:
+        shortmestext = f"{position_description[:shortml]}\n"
+    else:
         shortmestext = position_description
 
     #||| ПОСТИМ В TELEGRAPH
@@ -459,11 +456,11 @@ async def product_position_create_photo(message: Message, state: FSMContext):
 
     await notify(dp, f"Создана позиция: {position_id}, пользователем ID: {position_user_id}")
 
-    if ct == "text":
-        await message.answer(f"{shortmestext}")
-    elif ct == "photo":
+    if ct == "photo":
         await message.answer_photo(photo=position_photo, caption=f"{shortmestext}")
 
+    elif ct == "text":
+        await message.answer(f"{shortmestext}")
     await message.answer(_("<b>📁 Позиция была успешно создана ✅</b>", locale=lang))
     await asyncio.create_task(await approve_new_product_notify(position_id, markup=None))
 
@@ -522,7 +519,6 @@ async def full2_picker_handler(call: CallbackQuery):
 async def full2_picker_handler(call: CallbackQuery, state: FSMContext):
     decision = call.data.split(":")[1]
     user_id = call.from_user.id
-    lang = "ru"
     print("PT")
     full_timep_default(
         # default labels
@@ -549,6 +545,7 @@ async def full2_picker_handler(call: CallbackQuery, state: FSMContext):
         await HourTimePicker().start_picker()
     if decision == "no":
         await state.set_state("save_planned_datetime")
+        lang = "ru"
         await call.message.answer(
             "Сохраняем дату поста.",
             reply_markup=menu_frep(user_id, lang)
@@ -558,11 +555,11 @@ async def full2_picker_handler(call: CallbackQuery, state: FSMContext):
 async def process_hour_timepicker(callback_query: CallbackQuery, callback_data: dict, state: FSMContext):
     r = await HourTimePicker().process_selection(callback_query, callback_data)
     print(r.hours)
-    user_id = callback_query.from_user.id
     lang = "ru"
     if r.selected:
         await state.update_data(here_position_plan_hour=r.hours)
         await state.set_state("save_planned_datetime")
+        user_id = callback_query.from_user.id
         await dp.bot.send_message(callback_query.from_user.id,
                                   text=f'Вы выбрали {r.hours}', reply_markup=post_datetime_save_comfirm_finl())
 
@@ -621,8 +618,8 @@ async def product_position_planning_approve(call: CallbackQuery, state: FSMConte
         await state.update_data(here_position_id=position_id)
         await dp.bot.send_message(
             chat_id=user_id,
-            text=f"Пожалуйста, выберите дату для постинга позиции:",
-            reply_markup=await SimpleCalendar().start_calendar()
+            text="Пожалуйста, выберите дату для постинга позиции:",
+            reply_markup=await SimpleCalendar().start_calendar(),
         )
         await asyncio.sleep(10)
 
@@ -637,10 +634,10 @@ async def product_position_planning_approve(call: CallbackQuery):
     position_id = int(call.data.split(":")[1])
     decision = call.data.split(":")[2]
 
-    user_id = call.from_user.id
-
     if decision == "yes":
         await update_positionx(position_id, position_state="Broadcast")
+
+        user_id = call.from_user.id
 
         await call.answer("<b>📁 Начинаем броадкаст поста 🖍</b>",
                           reply_markup=menu_frep(user_id, "ru"))
@@ -654,17 +651,11 @@ async def user_seller_request(message: Message, state: FSMContext):
     lang = get_user_lang(user_id)['user_lang']
 
     print("LLLLLL")
-    user_requests = get_requestx(requester=user_id)
-    #print(user_requests)
-
-    if user_requests:
+    if user_requests := get_requestx(requester=user_id):
         await message.answer("У Вас уже есть запросы продавца |||| Если админ Вам не подтвердил запрос, напишите: @raclear")
         await message.answer(open_profile_search_req(user_id, lang), reply_markup=menu_frep(user_id, lang))
-        await state.set_state("here_seller_request_direction")
-        await message.answer(_("<b>📁 Введите тип товара, который Вы будете продавать:</b>", locale=lang))
-    else:
-        await state.set_state("here_seller_request_direction")
-        await message.answer(_("<b>📁 Введите тип товара, который Вы будете продавать:</b>", locale=lang))
+    await state.set_state("here_seller_request_direction")
+    await message.answer(_("<b>📁 Введите тип товара, который Вы будете продавать:</b>", locale=lang))
 
 # Открытие товаров
 @dp.message_handler(text=["Админ Афиши", "Events Admin"],state="*")
@@ -771,9 +762,9 @@ async def product_position_edit(message: Message, state: FSMContext):
     user_role = get_userx(user_id=user_id)['user_role']
     city_id = get_city_user(user_id)[0]
 
-    action = "edit"
     if user_role in ["Admin", "ShopAdmin"]:
         await state.finish()
+        action = "edit"
         await message.answer(_("<b>📁 Выберите категорию с нужной позицией 🖍</b>", locale=lang),
                              reply_markup=products_item_category_swipe_fp(0, 0, city_id, action, lang))
 
@@ -1762,7 +1753,7 @@ async def payment_systems(message: Message, state: FSMContext):
     lang = get_userx(user_id=user_id)['user_lang']
     user_role = get_userx(user_id=user_id)['user_role']
     print(user_role)
-    if user_role == "Admin" or user_role == "ShopAdmin": #user_id in get_admins(): #
+    if user_role in ["Admin", "ShopAdmin"]: #user_id in get_admins(): #
         await message.answer(_("<b>🖲 Выберите способ пополнения</b>", locale=lang), reply_markup=payment_choice_finl(user_id, lang))
 
 
@@ -2036,7 +2027,7 @@ async def product_position_create_select_category(call: CallbackQuery, state: FS
     user_id = call.from_user.id
     lang = get_userx(user_id=user_id)['user_lang']
     user_role = get_userx(user_id=user_id)['user_role']
-    if user_role == "Admin" or user_role == "ShopAdmin":
+    if user_role in ["Admin", "ShopAdmin"]:
         await state.set_state("here_position_name")
         await call.message.edit_text("<b>📁 Введите название для позиции 🏷</b>")
 
@@ -2053,7 +2044,6 @@ async def product_position_open_select_category(call: CallbackQuery, state: FSMC
     #else: city_id = int(call.data.split(":")[3])
     print(category_id, city_id, get_category)
 
-    source = "people"
     get_positions = get_people_positions_in_cityx(category_id=category_id, position_city_id=city_id, flagallc=1, position_type=1)  # flagallc=1,  get_positionsx(category_id=category_id)
     print(category_id, city_id)
     user_id = call.from_user.id
@@ -2061,6 +2051,7 @@ async def product_position_open_select_category(call: CallbackQuery, state: FSMC
     #user_role = get_userx(user_id=user_id)['user_role']
     #if user_role == "Admin" or user_role == "ShopAdmin":
     if len(get_positions) >= 1:
+        source = "people"
         #source = "people"
         await call.message.edit_text(f"<b>🎁 Товары частных лиц в категории: {get_category['category']}</b>",
                                      reply_markup=products_item_position_swipe_fp(0, "open", category_id, city_id, source, lang))
@@ -2079,8 +2070,6 @@ async def product_position_create_select_category(call: CallbackQuery, state: FS
     await state.update_data(here_cache_change_category_id=category_id)
     await state.update_data(here_position_source="commercial")
 
-    action = "edit"
-    source = "commercial"
     user_id = call.from_user.id
     lang = get_userx(user_id=user_id)['user_lang']
     user_role = get_userx(user_id=user_id)['user_role']
@@ -2088,6 +2077,8 @@ async def product_position_create_select_category(call: CallbackQuery, state: FS
     print(get_cat_pos)
     if user_role in ['Admin', 'ShopAdmin']:
         if len(get_cat_pos) >= 1:
+            action = "edit"
+            source = "commercial"
             await call.message.edit_text(_("<b>📁 Выберите категорию с нужной позицией 🖍</b>", locale=lang),
                                          reply_markup=products_item_position_swipe_fp(0, action, category_id, city_id, source, lang))
             await state.set_state("here_position_addtoshop")
@@ -2379,10 +2370,10 @@ async def product_position_edit_category_open(call: CallbackQuery, state: FSMCon
     lang = call.data.split(":")[3]
     user_id = call.from_user.id
     user_role = get_userx(user_id=user_id)['user_role']
-    #print(i18n.get_user_locale('position_edit', user_id=message.from_user.id))
-    action = "edit"
     #print("SWIPE_CAT1")
     if user_role in ["Admin", "ShopAdmin"]:
+        #print(i18n.get_user_locale('position_edit', user_id=message.from_user.id))
+        action = "edit"
         #print("SWIPE_CAT2")
         await call.message.edit_text(_("<b>📁 Выберите нужную вам позицию 🖍</b>", locale=lang),
                                      reply_markup=products_item_category_swipe_fp(0, category_id, city_id, action, lang))
@@ -2451,11 +2442,11 @@ async def product_position_edit_return(call: CallbackQuery, state: FSMContext):
     lang = get_userx(user_id=user_id)['user_lang']
     user_role = get_userx(user_id=user_id)['user_role']
     city_id = get_userx(user_id=user_id)['user_city_id']
-    action = "edit"
-    source = "commercial"
-
     if len(get_positionsx(category_id=category_id)) >= 1:
         await call.message.delete()
+        action = "edit"
+        source = "commercial"
+
         await call.message.answer(_("<b>📁 Выберите нужную вам позицию 🖍</b>", locale=lang),
                                   reply_markup=products_item_position_swipe_fp(remover, action, category_id, city_id, source, lang))
     else:
@@ -3034,8 +3025,6 @@ async def user_purchase_category_open(call: CallbackQuery, state: FSMContext):
     lang = get_userx(user_id=user_id)['user_lang']
     print("CATEGORY OPEN")
 
-    source = "commercial"
-    action = "open"
     get_category = get_categoryx(category_id=category_id)
     print(get_category)
     city_id = get_city_user(call.from_user.id)[0]
@@ -3043,6 +3032,8 @@ async def user_purchase_category_open(call: CallbackQuery, state: FSMContext):
     print(get_positions)
     print(category_id, city_id)
     if get_positions:
+        source = "commercial"
+        action = "open"
         await call.message.edit_text(_("<b>🎁 Товары категории:</b>", locale=lang) + get_category['category_name'],
                                      reply_markup=products_item_position_swipe_fp(0, action, category_id, city_id, source, lang))
     else:
